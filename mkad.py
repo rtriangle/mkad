@@ -19,11 +19,10 @@ SOFTWARE.
 """
 
 import numpy as np
-from mklaren.kernel.kinterface import Kinterface
-from mklaren.kernel.kernel import rbf_kernel, poly_kernel, linear_kernel
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.svm import OneClassSVM
 from collections import Counter
+from tqdm import tqdm_notebook as tqdm
 from pyts.transformation import StandardScaler
 from pyts.transformation import PAA
 from pyts.transformation import SAX
@@ -105,7 +104,7 @@ class MultipleKernelAnomalyDetector:
             LCS - kernel for Multiple Kernel Anomaly Detector
         """
         res = np.zeros((x1.shape[0], x2.shape[0]))
-        for ind1 in range(x1.shape[0]):
+        for ind1 in tqdm(range(x1.shape[0])):
             for ind2 in range(ind1, x2.shape[0]):
                 if len(Counter(x1[ind1])) > 0.3 and len(Counter(x2[ind2])):
                     for i in range(0, len(x1[ind1]), self.x_shape[-1]):
