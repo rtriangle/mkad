@@ -36,9 +36,10 @@ class MultipleKernelAnomalyDetector:
 
     def __init__(self,
                  nu=0.25,
+                 gamma=0.1,
                  tol=1e-3,
                  degree=3,
-                 kernel='lcs',
+                 kernel='rbf',
                  sax_size=5,
                  quantiles='gaussian'
                  ):
@@ -48,6 +49,7 @@ class MultipleKernelAnomalyDetector:
             according the original article.
         """
         self.nu = nu
+        self.gamma = gamma
         self.tol = tol
         self.degree = degree
         self.kernel = kernel
@@ -96,18 +98,22 @@ class MultipleKernelAnomalyDetector:
     def get_sax(self, sequence):
         sequence = np.reshape(sequence, (1, len(sequence)))
         return self.sax.transform(self.paa.transform(self.stand_scaler.transform(sequence)))[0]
-    
+
     def lcs_kernel_function(self, x1, x2):
         """
-             LCS - kernel for Multiple Kernel Anomaly Detector
+            LCS - kernel for Multiple Kernel Anomaly Detector
         """
         res = np.zeros((x1.shape[0], x2.shape[0]))
         for ind1 in range(x1.shape[0]):
             for ind2 in range(x2.shape[0]):
-                for i in range(0, len(x1[ind1]), self.x_shape[-1]):
-                    res[ind1][ind2] += self.nlcs(self.get_sax(x1[ind1][i:i+self.x_shape[-1]]),
-                                          self.get_sax(x2[ind2][i:i+self.x_shape[-1]]))
-        print(res.shape)
+                if len(Counter(x1[ind1])) > 0.3 and len(Counter(x2[ind2])):
+                    for i in range(0, len(x1[ind1]), self.x_shape[-1]):
+                        res[ind1][ind2] += self.nlcs(self.get_sax(x1[ind1][i:i+self.x_shape[-1]]),
+                                                     self.get_sax(x2[ind2][i:i+self.x_shape[-1]]))
+                else:
+                    for i in range(0, len(x1[ind1]), self.x_shape[-1]):
+                        res[ind1][ind2] += self.nlcs(x1[ind1][i:i+self.x_shape[-1]],
+                                                     x2[ind2][i:i+self.x_shape[-1]])
         return res
 
     def __transformation(self, x):
@@ -115,7 +121,13 @@ class MultipleKernelAnomalyDetector:
             Transforms X from 3D to 2D array for OneClassSVM
         """
         return x.transpose(0, 1, 2).reshape(x.shape[0], -1)
-    
+
+    def gaussian_kernel(self, x, y):
+        kernel = euclidean_distances(x, y) ** 2
+        kernel = kernel * (-1 / (0.5 ** 2))
+        kernel = np.exp(kernel)
+        return kernel
+
     def fit(self, x):
         """
             With lcs kernel X must have shape (n, d, l),
@@ -126,22 +138,24 @@ class MultipleKernelAnomalyDetector:
         self.x_shape = x.shape
         if self.kernel == 'lcs':
             x_transformed = self.__transformation(x)
-            f = lambda x, y: self.lcs_kernel_function(x,y) 
-            self.one_class_svm = OneClassSVM(kernel=f)
+            kernel = lambda x, y: self.lcs_kernel_function(x, y)
+            self.one_class_svm = OneClassSVM(kernel=kernel, nu=self.nu,
+                                             gamma=self.gamma, degree=self.degree)
             self.one_class_svm.fit(x_transformed)
         else:
             x_transformed = x
-            self.one_class_svm = OneClassSVM(kernel='rbf')
+            self.one_class_svm = OneClassSVM(kernel='rbf', nu=self.nu,
+                                             gamma=self.gamma, degree=self.degree)
             self.one_class_svm.fit(x_transformed)
 
     def predict(self, x):
-        '''
+        """
             With lcs kernel X must have shape (n, d, l),
             where n - number of samples, d - number of dimensions, l - feature length.
             With rbf kernel X must have shape (n, l)
             where n - number of samples, l - feature length.
             Function returns y-array with +1;-1
-        '''
+        """
         if len(x.shape) > 2:
             x = self.__transformation(x)
         return self.one_class_svm.predict(x)
