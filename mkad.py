@@ -105,7 +105,7 @@ class MultipleKernelAnomalyDetector:
             LCS - kernel for Multiple Kernel Anomaly Detector
         """
         res = np.zeros((x1.shape[0], x2.shape[0]))
-        for ind1 in tqdm(range(x1.shape[0])):
+        for ind1 in range(x1.shape[0]):
             for ind2 in range(ind1, x2.shape[0]):
                 if len(Counter(x1[ind1])) > 0.3 and len(Counter(x2[ind2])):
                     for i in range(0, len(x1[ind1]), self.x_shape[-1]):
