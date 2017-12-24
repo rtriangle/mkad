@@ -35,13 +35,14 @@ class MultipleKernelAnomalyDetector:
     """
 
     def __init__(self,
-                 nu=0.25,
+                 nu=0.5,
                  gamma=0.1,
                  tol=1e-3,
                  degree=3,
-                 kernel='rbf',
-                 sax_size=5,
-                 quantiles='gaussian'
+                 kernel='lcs',
+                 sax_size=4,
+                 quantiles='gaussian',
+                 paa_size=8
                  ):
         """
             Constructor accepts some args for sklearn.svm.OneClassSVM and SAX inside.
@@ -54,7 +55,7 @@ class MultipleKernelAnomalyDetector:
         self.degree = degree
         self.kernel = kernel
         self.stand_scaler = StandardScaler(epsilon=1e-2)
-        self.paa = PAA(window_size=None, output_size=8, overlapping=True)
+        self.paa = PAA(window_size=None, output_size=paa_size, overlapping=True)
         self.sax = SAX(n_bins=sax_size, quantiles=quantiles)
 
     def compute_matrix_of_equals(self, sequence1, sequence2):
@@ -104,29 +105,28 @@ class MultipleKernelAnomalyDetector:
             LCS - kernel for Multiple Kernel Anomaly Detector
         """
         res = np.zeros((x1.shape[0], x2.shape[0]))
-        for ind1 in range(x1.shape[0]):
-            for ind2 in range(x2.shape[0]):
+        for ind1 in tqdm(range(x1.shape[0])):
+            for ind2 in range(ind1, x2.shape[0]):
                 if len(Counter(x1[ind1])) > 0.3 and len(Counter(x2[ind2])):
                     for i in range(0, len(x1[ind1]), self.x_shape[-1]):
-                        res[ind1][ind2] += self.nlcs(self.get_sax(x1[ind1][i:i+self.x_shape[-1]]),
-                                                     self.get_sax(x2[ind2][i:i+self.x_shape[-1]]))
+                        res[ind1][ind2] += self.nlcs(self.get_sax(x1[ind1][i:i + self.x_shape[-1]]),
+                                                     self.get_sax(x2[ind2][i:i + self.x_shape[-1]]))
+                        res[ind2][ind1] = res[ind1][ind2]
                 else:
                     for i in range(0, len(x1[ind1]), self.x_shape[-1]):
-                        res[ind1][ind2] += self.nlcs(x1[ind1][i:i+self.x_shape[-1]],
-                                                     x2[ind2][i:i+self.x_shape[-1]])
+                        res[ind1][ind2] += self.nlcs(x1[ind1][i:i + self.x_shape[-1]],
+                                                     x2[ind2][i:i + self.x_shape[-1]])
+                        res[ind2][ind1] = res[ind1][ind2]
         return res
 
-    def __transformation(self, x):
+    def transformation(self, x):
         """
             Transforms X from 3D to 2D array for OneClassSVM
         """
         return x.transpose(0, 1, 2).reshape(x.shape[0], -1)
 
     def gaussian_kernel(self, x, y):
-        kernel = euclidean_distances(x, y) ** 2
-        kernel = kernel * (-1 / (0.5 ** 2))
-        kernel = np.exp(kernel)
-        return kernel
+        return np.exp((euclidean_distances(x, y) ** 2) * (-1 / (0.5 ** 2)))
 
     def fit(self, x):
         """
@@ -137,10 +137,10 @@ class MultipleKernelAnomalyDetector:
         """
         self.x_shape = x.shape
         if self.kernel == 'lcs':
-            x_transformed = self.__transformation(x)
+            x_transformed = self.transformation(x)
             kernel = lambda x, y: self.lcs_kernel_function(x, y)
             self.one_class_svm = OneClassSVM(kernel=kernel, nu=self.nu,
-                                             gamma=self.gamma, degree=self.degree)
+                                             gamma='auto', degree=self.degree)
             self.one_class_svm.fit(x_transformed)
         else:
             x_transformed = x
@@ -157,5 +157,5 @@ class MultipleKernelAnomalyDetector:
             Function returns y-array with +1;-1
         """
         if len(x.shape) > 2:
-            x = self.__transformation(x)
+            x = self.transformation(x)
         return self.one_class_svm.predict(x)
