@@ -1,16 +1,33 @@
+#!/usr/bin/env python
+"""
+Copyright (c) 2017 Daniil Korbut
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import numpy as np
 from mklaren.kernel.kinterface import Kinterface
 from mklaren.kernel.kernel import rbf_kernel, poly_kernel, linear_kernel
 from sklearn.metrics.pairwise import euclidean_distances
 from sklearn.svm import OneClassSVM
 from collections import Counter
-from scipy.stats import norm
-
 from pyts.transformation import StandardScaler
 from pyts.transformation import PAA
 from pyts.transformation import SAX
 
-from copy import deepcopy
 
 class MultipleKernelAnomalyDetector:
     """
@@ -79,28 +96,11 @@ class MultipleKernelAnomalyDetector:
     def get_sax(self, sequence):
         sequence = np.reshape(sequence, (1, len(sequence)))
         return self.sax.transform(self.paa.transform(self.stand_scaler.transform(sequence)))[0]
-
-#     def lcs_kernel_function1(self, x1, x2):
-#         """
-#             LCS - kernel for Multiple Kernel Anomaly Detector
-#         """
-#         print('x1:')
-#         print(x1)
-#         print('x2:')
-#         print(x2)
-#         print('--------')
-#         res = np.zeros((x1.shape[0], x1.shape[-1]))
-#         for j in range(x1.shape[0]):
-#             for i in range(0, len(x1), self.x_shape[-1]):
-#                 if len(Counter(x1[j][i:i + self.x_shape[-1]])) > 0.5 * self.x_shape[-1]:
-#                     res[j][i] = self.nlcs(self.get_sax(x1[j][i:i + self.x_shape[-1]]), self.get_sax(x2[j][i:i + self.x_shape[-1]]))
-#                 else:
-#                     res[j][i] = self.nlcs(x1[j][i:i + self.x_shape[-1]], x2[j][i:i + self.x_shape[-1]])
-#         return res
     
     def lcs_kernel_function(self, x1, x2):
-        print(x1.shape)
-        print(x2.shape)
+        """
+             LCS - kernel for Multiple Kernel Anomaly Detector
+        """
         res = np.zeros((x1.shape[0], x2.shape[0]))
         for ind1 in range(x1.shape[0]):
             for ind2 in range(x2.shape[0]):
@@ -126,7 +126,7 @@ class MultipleKernelAnomalyDetector:
         self.x_shape = x.shape
         if self.kernel == 'lcs':
             x_transformed = self.__transformation(x)
-            f = lambda x, y: 0.9 * self.lcs_kernel_function(x,y) 
+            f = lambda x, y: self.lcs_kernel_function(x,y) 
             self.one_class_svm = OneClassSVM(kernel=f)
             self.one_class_svm.fit(x_transformed)
         else:
